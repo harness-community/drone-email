@@ -118,25 +118,27 @@ type (
 func (p Plugin) Exec() error {
 	var dialer *gomail.Dialer
 
-	if !p.Config.RecipientsOnly {
-		exists := false
-		for _, recipient := range p.Config.Recipients {
-			if recipient == p.Commit.Author.Email {
-				exists = true
-			}
-		}
+	recipientsMap := make(map[string]struct{})
 
-		if !exists {
-			p.Config.Recipients = append(p.Config.Recipients, p.Commit.Author.Email)
+	// Add recipients from the config
+	for _, recipient := range p.Config.Recipients {
+		recipientsMap[recipient] = struct{}{}
+	}
+
+	// Add commit author's email if not already present and RecipientsOnly is false
+	if !p.Config.RecipientsOnly {
+		if _, exists := recipientsMap[p.Commit.Author.Email]; !exists {
+			recipientsMap[p.Commit.Author.Email] = struct{}{}
 		}
 	}
 
+	// Add recipients from the recipients file
 	if p.Config.RecipientsFile != "" {
 		f, err := os.Open(p.Config.RecipientsFile)
 		if err == nil {
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
-				p.Config.Recipients = append(p.Config.Recipients, scanner.Text())
+				recipientsMap[scanner.Text()] = struct{}{}
 			}
 		} else {
 			log.Errorf("Could not open RecipientsFile %s: %v", p.Config.RecipientsFile, err)
@@ -216,10 +218,7 @@ func (p Plugin) Exec() error {
 
 	// Send emails
 	message := gomail.NewMessage()
-	for _, recipient := range p.Config.Recipients {
-		if len(recipient) == 0 {
-			continue
-		}
+	for recipient := range recipientsMap {
 		message.SetAddressHeader("From", p.Config.FromAddress, p.Config.FromName)
 		message.SetAddressHeader("To", recipient, "")
 		message.SetHeader("Subject", subject)
