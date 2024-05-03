@@ -122,13 +122,19 @@ func (p Plugin) Exec() error {
 
 	// Add recipients from the config
 	for _, recipient := range p.Config.Recipients {
+		if recipient == "" {
+			log.Warnf("Skipping empty recipient from config")
+			continue
+		}
 		recipientsMap[recipient] = struct{}{}
 	}
 
 	// Add commit author's email if not already present and RecipientsOnly is false
 	if !p.Config.RecipientsOnly {
-		if _, exists := recipientsMap[p.Commit.Author.Email]; !exists {
+		if p.Commit.Author.Email != "" {
 			recipientsMap[p.Commit.Author.Email] = struct{}{}
+		} else {
+			log.Warn("Commit author email is empty")
 		}
 	}
 
@@ -138,12 +144,19 @@ func (p Plugin) Exec() error {
 		if err == nil {
 			scanner := bufio.NewScanner(f)
 			for scanner.Scan() {
-				recipientsMap[scanner.Text()] = struct{}{}
+				recipient := scanner.Text()
+				if recipient == "" {
+					log.Warnf("Skipping empty recipient from file %s", p.Config.RecipientsFile)
+					continue
+				}
+				recipientsMap[recipient] = struct{}{}
 			}
 		} else {
 			log.Errorf("Could not open RecipientsFile %s: %v", p.Config.RecipientsFile, err)
 		}
 	}
+
+	log.Infof("Recipients: %v", recipientsMap)
 
 	if p.Config.Username == "" && p.Config.Password == "" {
 		dialer = &gomail.Dialer{Host: p.Config.Host, Port: p.Config.Port}
