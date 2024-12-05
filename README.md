@@ -18,7 +18,7 @@ go build
 Build the docker image with the following commands:
 
 ```
-docker build -t drillster/drone-email:latest .
+docker build -t plugins/email:latest .
 ```
 
 Build the docker for ARM with buildx
@@ -29,7 +29,7 @@ docker buildx use mybuilder
 docker buildx build --file Dockerfile.armhf --platform linux/arm64/v7,linux/arm64 -t drone-email:latest .
 ```
 
-This will create a Docker image called `drillster/drone-email:latest`.
+This will create a Docker image called `plugins/email:latest`.
 Please note incorrectly building the image for the correct x64 linux and with GCO disabled will result in an error when running the Docker image:
 
 ```
@@ -59,5 +59,5 @@ docker run --rm \
   -e DRONE_COMMIT_MESSAGE="Hello world!" \
   -v $(pwd):$(pwd) \
   -w $(pwd) \
-  drillster/drone-email
+  plugins/email
 ```
