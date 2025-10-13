@@ -114,10 +114,18 @@ var macros = map[string]string{
 	"num":        `[0-9]*\.[0-9]+|[0-9]+`,
 	"string":     `"(?:{stringchar}|')*"|'(?:{stringchar}|")*'`,
 	"stringchar": `{urlchar}|[ ]|\\{nl}`,
-	"urlchar":    "[\u0009\u0021\u0023-\u0026\u0027-\u007E]|{nonascii}|{escape}",
 	"nl":         `[\n\r\f]|\r\n`,
 	"w":          `{wc}*`,
 	"wc":         `[\t\n\f\r ]`,
+
+	// urlchar should accept [(ascii characters minus those that need escaping)|{nonascii}|{escape}]
+	// ASCII characters range = `[\u0020-\u007e]`
+	// Skip space \u0020 = `[\u0021-\u007e]`
+	// Skip quotation mark \0022 = `[\u0021\u0023-\u007e]`
+	// Skip apostrophe \u0027 = `[\u0021\u0023-\u0026\u0028-\u007e]`
+	// Skip reverse solidus \u005c = `[\u0021\u0023-\u0026\u0028-\u005b\u005d\u007e]`
+	// Finally, the left square bracket (\u005b) and right (\u005d) needs escaping themselves
+	"urlchar": "[\u0021\u0023-\u0026\u0028-\\\u005b\\\u005d-\u007E]|{nonascii}|{escape}",
 }
 
 // productions maps the list of tokens to patterns to be expanded.
@@ -130,7 +138,7 @@ var productions = map[tokenType]string{
 	TokenNumber:       `{num}`,
 	TokenPercentage:   `{num}%`,
 	TokenDimension:    `{num}{ident}`,
-	TokenURI:          `url\({w}(?:{string}|{urlchar}*){w}\)`,
+	TokenURI:          `url\({w}(?:{string}|{urlchar}*?){w}\)`,
 	TokenUnicodeRange: `U\+[0-9A-F\?]{1,6}(?:-[0-9A-F]{1,6})?`,
 	//TokenCDO:            `<!--`,
 	TokenCDC:      `-->`,
@@ -183,7 +191,11 @@ func init() {
 // New returns a new CSS scanner for the given input.
 func New(input string) *Scanner {
 	// Normalize newlines.
+	// https://www.w3.org/TR/css-syntax-3/#input-preprocessing
 	input = strings.Replace(input, "\r\n", "\n", -1)
+	input = strings.Replace(input, "\r", "\n", -1)
+	input = strings.Replace(input, "\f", "\n", -1)
+	input = strings.Replace(input, "\u0000", "\ufffd", -1)
 	return &Scanner{
 		input: input,
 		row:   1,
@@ -224,7 +236,7 @@ func (s *Scanner) Next() *Token {
 	// shortcut before testing multiple regexps.
 	input := s.input[s.pos:]
 	switch input[0] {
-	case '\t', '\n', '\f', '\r', ' ':
+	case '\t', '\n', ' ':
 		// Whitespace.
 		return s.emitToken(TokenS, matchers[TokenS].FindString(input))
 	case '.':
@@ -254,10 +266,10 @@ func (s *Scanner) Next() *Token {
 		match := matchers[TokenString].FindString(input)
 		if match != "" {
 			return s.emitToken(TokenString, match)
-		} else {
-			s.err = &Token{TokenError, "unclosed quotation mark", s.row, s.col}
-			return s.err
 		}
+
+		s.err = &Token{TokenError, "unclosed quotation mark", s.row, s.col}
+		return s.err
 	case '/':
 		// Comment, error or Char.
 		if len(input) > 1 && input[1] == '*' {
