@@ -5,9 +5,9 @@ import (
 	"crypto/tls"
 	"os"
 
-	log "github.com/Sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	"github.com/aymerick/douceur/inliner"
-	"github.com/drone/drone-go/template"
+	"github.com/drone/drone-template-lib/template"
 	"github.com/jaytaylor/html2text"
 	gomail "gopkg.in/mail.v2"
 )
