@@ -50,9 +50,9 @@ type (
 		Event    string
 		Status   string
 		Link     string
-		Created  int64
-		Started  int64
-		Finished int64
+		Created  float64
+		Started  float64
+		Finished float64
 	}
 
 	PrevBuild struct {

@@ -378,9 +378,9 @@ func run(c *cli.Context) error {
 			Event:    c.String("build.event"),
 			Status:   c.String("build.status"),
 			Link:     c.String("build.link"),
-			Created:  c.Int64("build.created"),
-			Started:  c.Int64("build.started"),
-			Finished: c.Int64("build.finished"),
+			Created:  float64(c.Int64("build.created")),
+			Started:  float64(c.Int64("build.started")),
+			Finished: float64(c.Int64("build.finished")),
 		},
 		Prev: Prev{
 			Build: PrevBuild{
