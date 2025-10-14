@@ -394,8 +394,8 @@ func run(c *cli.Context) error {
 		Job: Job{
 			Status:   c.String("job.status"),
 			ExitCode: c.Int("job.exitCode"),
-			Started:  c.Int64("job.started"),
-			Finished: c.Int64("job.finished"),
+			Started:  float64(c.Int64("job.started")),
+			Finished: float64(c.Int64("job.finished")),
 		},
 		Yaml: Yaml{
 			Signed:   c.Bool("yaml.signed"),

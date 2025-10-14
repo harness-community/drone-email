@@ -72,8 +72,8 @@ type (
 	Job struct {
 		Status   string
 		ExitCode int
-		Started  int64
-		Finished int64
+		Started  float64
+		Finished float64
 	}
 
 	Yaml struct {
