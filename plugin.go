@@ -2,14 +2,15 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"os"
 
-	log "github.com/Sirupsen/logrus"
 	"github.com/aymerick/douceur/inliner"
-	"github.com/drone/drone-go/template"
+	"github.com/drone/drone-template-lib/template"
 	"github.com/jaytaylor/html2text"
-	gomail "gopkg.in/mail.v2"
+	log "github.com/sirupsen/logrus"
+	mail "github.com/wneessen/go-mail"
 )
 
 type (
@@ -49,9 +50,9 @@ type (
 		Event    string
 		Status   string
 		Link     string
-		Created  int64
-		Started  int64
-		Finished int64
+		Created  float64
+		Started  float64
+		Finished float64
 	}
 
 	PrevBuild struct {
@@ -71,8 +72,8 @@ type (
 	Job struct {
 		Status   string
 		ExitCode int
-		Started  int64
-		Finished int64
+		Started  float64
+		Finished float64
 	}
 
 	Yaml struct {
@@ -116,8 +117,7 @@ type (
 
 // Exec will send emails over SMTP
 func (p Plugin) Exec() error {
-	var dialer *gomail.Dialer
-
+	// Build recipient list
 	recipientsMap := make(map[string]struct{})
 
 	// Add recipients from the config
@@ -158,28 +158,46 @@ func (p Plugin) Exec() error {
 
 	log.Infof("Recipients: %v", recipientsMap)
 
-	if p.Config.Username == "" && p.Config.Password == "" {
-		dialer = &gomail.Dialer{Host: p.Config.Host, Port: p.Config.Port}
-	} else {
-		dialer = gomail.NewDialer(p.Config.Host, p.Config.Port, p.Config.Username, p.Config.Password)
+	// Create mail client with options
+	options := []mail.Option{
+		mail.WithPort(p.Config.Port),
 	}
 
+	// Set HELO hostname if provided
+	if p.Config.ClientHostname != "" {
+		options = append(options, mail.WithHELO(p.Config.ClientHostname))
+	}
+
+	// Add authentication if provided
+	if p.Config.Username != "" && p.Config.Password != "" {
+		options = append(options,
+			mail.WithSMTPAuth(mail.SMTPAuthPlain),
+			mail.WithUsername(p.Config.Username),
+			mail.WithPassword(p.Config.Password),
+		)
+	}
+
+	// Handle TLS configuration
 	if p.Config.SkipVerify {
-		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+		options = append(options, mail.WithTLSConfig(&tls.Config{
+			InsecureSkipVerify: true,
+		}))
 	}
 
+	// Handle STARTTLS policy
 	if p.Config.NoStartTLS {
-		dialer.StartTLSPolicy = gomail.NoStartTLS
+		options = append(options, mail.WithTLSPortPolicy(mail.NoTLS))
+	} else {
+		options = append(options, mail.WithTLSPortPolicy(mail.TLSOpportunistic))
 	}
 
-	dialer.LocalName = p.Config.ClientHostname
-
-	closer, err := dialer.Dial()
+	client, err := mail.NewClient(p.Config.Host, options...)
 	if err != nil {
-		log.Errorf("Error while dialing SMTP server: %v", err)
+		log.Errorf("Error creating mail client: %v", err)
 		return err
 	}
 
+	// Prepare template context
 	type Context struct {
 		Repo        Repo
 		Remote      Remote
@@ -211,11 +229,13 @@ func (p Plugin) Exec() error {
 		log.Errorf("Could not render body template: %v", err)
 		return err
 	}
+
 	html, err := inliner.Inline(renderedBody)
 	if err != nil {
 		log.Errorf("Could not inline rendered body: %v", err)
 		return err
 	}
+
 	plainBody, err := html2text.FromString(html)
 	if err != nil {
 		log.Errorf("Could not convert html to text: %v", err)
@@ -229,35 +249,63 @@ func (p Plugin) Exec() error {
 		return err
 	}
 
-	// Send emails
-	message := gomail.NewMessage()
+	// Dial connection once and reuse for all recipients
+	if err := client.DialWithContext(context.Background()); err != nil {
+		log.Errorf("Error while dialing SMTP server: %v", err)
+		return err
+	}
+	defer client.Close()
+
+	// Send emails to each recipient
 	for recipient := range recipientsMap {
-		message.SetAddressHeader("From", p.Config.FromAddress, p.Config.FromName)
-		message.SetAddressHeader("To", recipient, "")
-		message.SetHeader("Subject", subject)
-		message.AddAlternative("text/plain", plainBody)
-		message.AddAlternative("text/html", html)
+		msg := mail.NewMsg()
 
+		// Set From header with optional name
+		if p.Config.FromName != "" {
+			if err := msg.FromFormat(p.Config.FromName, p.Config.FromAddress); err != nil {
+				log.Errorf("Could not set From header: %v", err)
+				return err
+			}
+		} else {
+			if err := msg.From(p.Config.FromAddress); err != nil {
+				log.Errorf("Could not set From header: %v", err)
+				return err
+			}
+		}
+
+		// Set To header
+		if err := msg.To(recipient); err != nil {
+			log.Errorf("Could not set To header: %v", err)
+			return err
+		}
+
+		// Set Subject
+		msg.Subject(subject)
+
+		// Set body with plain text and HTML alternatives
+		msg.SetBodyString(mail.TypeTextPlain, plainBody)
+		msg.AddAlternativeString(mail.TypeTextHTML, html)
+
+		// Add single attachment if specified
 		if p.Config.Attachment != "" {
-			attach(message, p.Config.Attachment)
+			if _, err := os.Stat(p.Config.Attachment); err == nil {
+				msg.AttachFile(p.Config.Attachment)
+			}
 		}
 
+		// Add multiple attachments
 		for _, attachment := range p.Config.Attachments {
-			attach(message, attachment)
+			if _, err := os.Stat(attachment); err == nil {
+				msg.AttachFile(attachment)
+			}
 		}
 
-		if err := gomail.Send(closer, message); err != nil {
+		// Send using existing connection
+		if err := client.Send(msg); err != nil {
 			log.Errorf("Could not send email to %q: %v", recipient, err)
 			return err
 		}
-		message.Reset()
 	}
 
 	return nil
-}
-
-func attach(message *gomail.Message, attachment string) {
-	if _, err := os.Stat(attachment); err == nil {
-		message.Attach(attachment)
-	}
 }

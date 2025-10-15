@@ -1,9 +1,9 @@
-FROM golang:1.22.7-alpine as builder
+FROM golang:1.24-alpine as builder
 
 WORKDIR /go/src/drone-email
 COPY . .
 
-RUN GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build
+RUN GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build
 
 FROM alpine:3.20
 
