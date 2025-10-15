@@ -191,7 +191,7 @@ const DefaultTemplate = `
           <div class="content">
             <table class="main" width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                {{#success build.status}}
+                {{#equal build.status "success"}}
                   <td class="alert alert-good">
                     <a href="{{ build.link }}">
                       Successful build #{{ build.number }}
@@ -203,7 +203,7 @@ const DefaultTemplate = `
                       Failed build #{{ build.number }}
                     </a>
                   </td>
-                {{/success}}
+                {{/equal}}
               </tr>
               <tr>
                 <td class="content-wrap">
