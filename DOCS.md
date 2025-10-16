@@ -73,6 +73,55 @@ drone secret add \
 
 See [Secret Guide](https://docs.drone.io/secret/) for additional information on secrets.
 
+### Harness CI Plugin Step
+
+When using this plugin in Harness CI pipelines, you can configure it as a Plugin step. The plugin automatically uses DRONE_* environment variables provided by the Harness CI environment for build context (repository, commit, build status, etc.).
+
+```yaml
+pipeline:
+  orgIdentifier: default
+  tags: {}
+  stages:
+    - stage:
+        name: Run Plugin
+        identifier: Email_Notification
+        description: ""
+        type: CI
+        spec:
+          cloneCodebase: false
+          platform:
+            os: Windows
+            arch: Amd64
+          runtime:
+            type: Cloud
+            spec: {}
+          execution:
+            steps:
+              - step:
+                  type: Plugin
+                  name: Email Plugin
+                  identifier: Email_Plugin
+                  spec:
+                    connectorRef: emailtestdocker
+                    image: plugins/email:3.1.0-debug
+                    settings:
+                      from.address: from@example.com
+                      from.name: Magic Elves
+                      host: sandbox.smtp.mailtrap.io
+                      username: <+secrets.getValue("smtp_username")>
+                      password: <+secrets.getValue("smtp_password")>
+                      recipients: user@example.com
+                      port: "2525"
+          caching:
+            enabled: false
+            paths: []
+          buildIntelligence:
+            enabled: false
+  projectIdentifier: example_project
+  identifier: email_notification_pipeline
+  name: Email Notification Pipeline
+```
+
 ### Custom Templates
 
 In some cases you may want to customize the look and feel of the email message
