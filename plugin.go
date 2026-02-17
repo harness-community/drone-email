@@ -185,10 +185,13 @@ func (p Plugin) Exec() error {
 	}
 
 	// Handle STARTTLS policy
+	// Note: Use WithTLSPolicy (not WithTLSPortPolicy) to avoid overriding
+	// the user-configured port. WithTLSPortPolicy treats port 25 as "default/unset"
+	// and silently changes it to 587 for TLSOpportunistic/TLSMandatory.
 	if p.Config.NoStartTLS {
-		options = append(options, mail.WithTLSPortPolicy(mail.NoTLS))
+		options = append(options, mail.WithTLSPolicy(mail.NoTLS))
 	} else {
-		options = append(options, mail.WithTLSPortPolicy(mail.TLSOpportunistic))
+		options = append(options, mail.WithTLSPolicy(mail.TLSOpportunistic))
 	}
 
 	client, err := mail.NewClient(p.Config.Host, options...)
