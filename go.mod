@@ -1,6 +1,6 @@
 module github.com/drone-plugins/drone-email
 
-go 1.25.0
+go 1.26.10
 
 require (
 	github.com/aymerick/douceur v0.2.0

@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine3.22 as builder
+FROM golang:1.26.10-alpine3.23@sha256:34414731924cf2263160f0021f5cf6e1807382d85248f7cb419d4187b96d5e43 as builder
 
 WORKDIR /go/src/drone-email
 COPY . .
@@ -7,7 +7,7 @@ RUN GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build
 
 FROM alpine:3.22
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache 'ca-certificates>=20261020-r0' tzdata
 
 COPY --from=builder /go/src/drone-email/drone-email /bin/
 ENTRYPOINT ["/bin/drone-email"]
