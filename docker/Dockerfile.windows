@@ -1,4 +1,4 @@
-FROM plugins/base:windows-ltsc2022-amd64@sha256:b0e662a71fbe8a28147fae27a68aa4bc5236c02bbe3400513bbefdb0469a50ce
+FROM plugins/base:windows-ltsc2022-amd64
 
 USER ContainerAdministrator
 
